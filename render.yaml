@@ -1,0 +1,21 @@
+# Blueprint Render (déploiement optionnel via render.yaml)
+# Méthode conseillée : créer le service depuis le dashboard Render + service "MySQL" via Aiven.
+services:
+  - type: web
+    name: choukrapp-academie
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: MYSQL_SSL
+        value: "true"
+      # URL fournie par Aiven : mysql://user:password@host:port/dbname
+      - key: DATABASE_URL
+        sync: false
+      - key: BASE_URL
+        sync: false

@@ -435,6 +435,7 @@ async function seed(db) {
       port: config.db.port,
       user: config.db.user,
       password: config.db.password,
+      ...(config.dbSsl ? { ssl: { rejectUnauthorized: false } } : {}),
       multipleStatements: true,
       charset: 'utf8mb4'
     });

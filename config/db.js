@@ -10,6 +10,7 @@ fs.mkdirSync(config.paths.uploadsCert, { recursive: true });
 
 const pool = mysql.createPool({
   ...config.db,
+  ...(config.dbSsl ? { ssl: { rejectUnauthorized: false } } : {}),
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
