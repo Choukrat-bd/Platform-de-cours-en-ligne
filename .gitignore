@@ -1,0 +1,11 @@
+node_modules/
+uploads/certificates/
+uploads/pdfs/*
+uploads/videos/*
+!uploads/pdfs/.gitkeep
+!uploads/videos/.gitkeep
+uploads/certificates/**
+
+.env
+*.log
+.DS_Store

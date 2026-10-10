@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Espace de cours - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container" style="margin-top:28px" id="main">
+    <div class="spinner"></div>
+  </main>
+
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    const courseId = Number(new URLSearchParams(location.search).get('id'));
+    let DATA = null;
+    let activeChapterId = null;
+
+    const isDone = (id) => {
+      const s = DATA.chapter_state.find((c) => c.chapter_id === id);
+      return Boolean(s && s.completed);
+    };
+
+    async function load() {
+      if (!courseId) { qs('#main').innerHTML = '<div class="alert alert-danger">Cours introuvable.</div>'; return; }
+      try { DATA = await API.get('/courses/' + courseId); render(); }
+      catch (e) { qs('#main').innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
+    }
+
+    function render() {
+      const { course, chapters, quizzes, enrolled, progress } = DATA;
+      qs('#main').innerHTML = `
+        <div class="card mb course-hero">
+          <div class="course-hero-cover" style="background-image:url('${coverFor(course)}')"></div>
+          <div class="flex between wrap gap" style="padding:22px">
+            <div style="flex:1;min-width:280px">
+              <span class="tag">${esc(course.category || 'Général')}</span>
+              <span class="tag tag-muted">${levelLabel(course.level)}</span>
+              <h1 style="margin:10px 0">${esc(course.title)}</h1>
+              <p class="muted">👨‍🏫 ${esc(course.enseignant || 'Enseignant')}</p>
+              <p style="margin-top:10px">${esc(course.description || '')}</p>
+            </div>
+            <div style="min-width:220px">
+              ${enrolled
+                ? `<div class="center"><div class="progress-ring">${progress}%</div>
+                     <div class="progress-bar-lg"><div style="width:${progress}%"></div></div>
+                     <p class="muted mt">Progression</p></div>`
+                : `<button class="btn btn-block" id="btn-enroll">S'inscrire au cours</button>`}
+            </div>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div>
+            <div class="card">
+              <h3>Chapitres (${chapters.length})</h3>
+              ${chapters.length === 0 ? '<p class="muted">Aucun chapitre.</p>' : chapters.map((ch, i) => `
+                <div class="chapter-row">
+                  <div class="flex between wrap gap">
+                    <span class="chapter-body" style="cursor:pointer" data-open="${ch.id}">
+                      <strong>${isDone(ch.id) ? '✅' : '⬜'} Ch. ${i + 1} — ${esc(ch.title)}</strong>
+                      <small class="muted">${ch.video_url ? '🎬 Vidéo ' : ''}${ch.pdf_url ? '📄 PDF' : ''}</small>
+                    </span>
+                    ${enrolled ? `<button class="btn btn-sm ${isDone(ch.id) ? 'btn-danger' : 'btn-outline'}" data-done="${ch.id}">${isDone(ch.id) ? 'Annuler' : 'Marquer terminé'}</button>` : ''}
+                  </div>
+                </div>`).join('')}
+            </div>
+
+            ${quizzes && quizzes.length ? `
+              <div class="card mt">
+                <h3>Évaluations</h3>
+                ${quizzes.map((q) => `<a class="btn btn-outline mt" href="/quiz.html?id=${q.id}">📝 ${esc(q.title)}</a>`).join('')}
+              </div>` : ''}
+          </div>
+
+          <div id="chapter-view" class="card">
+            <div class="empty"><div class="big">🎬</div>Sélectionnez un chapitre pour commencer.</div>
+          </div>
+        </div>`;
+
+      bind();
+      const first = chapters.find((c) => !isDone(c.id)) || chapters[0];
+      if (first) openChapter(first.id);
+    }
+
+    function bind() {
+      const e = qs('#btn-enroll');
+      if (e) e.addEventListener('click', enroll);
+
+      qsa('[data-open]').forEach((el) => el.addEventListener('click', () => openChapter(Number(el.dataset.open))));
+      qsa('[data-done]').forEach((b) => b.addEventListener('click', () => toggleDone(Number(b.dataset.done))));
+    }
+
+    async function toggleDone(id) {
+      const done = isDone(id);
+      try {
+        const r = await API.post('/chapters/' + id + '/complete', { completed: !done });
+        toast(r.certificate ? '🏆 Félicitations, certificat débloqué !' : 'Progression mise à jour.', 'success');
+        await load();
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    async function enroll() {
+      try { await API.post('/courses/' + courseId + '/enroll'); toast('Inscription réussie !', 'success'); await load(); }
+      catch (e) { toast(e.message, 'error'); }
+    }
+
+    function openChapter(id) {
+      activeChapterId = id;
+      const ch = DATA.chapters.find((c) => c.id === id);
+      if (!ch) return;
+      const done = isDone(id);
+      qs('#chapter-view').innerHTML = `
+        <h3>${esc(ch.title)}</h3>
+        ${ch.video_url
+          ? `<video class="player mt" controls preload="metadata" id="video" src="${esc(ch.video_url)}"></video>`
+          : '<p class="alert alert-info mt">Aucune vidéo pour ce chapitre.</p>'}
+        <div class="mt" style="white-space:pre-line">${esc(ch.content || '')}</div>
+        <div class="form-actions mt" style="justify-content:flex-start">
+          ${ch.pdf_url ? `<a class="btn btn-outline" href="${esc(ch.pdf_url)}" target="_blank" download>📄 Support PDF</a>` : ''}
+          ${DATA.enrolled ? `<button class="btn ${done ? 'btn-danger' : 'btn-success'}" id="btn-done">${done ? 'Annuler « terminé »' : '✅ Marquer comme terminé'}</button>` : ''}
+        </div>`;
+
+      const btn = qs('#btn-done');
+      if (btn) btn.addEventListener('click', () => toggleDone(id));
+
+      const video = qs('#video');
+      if (video) {
+        const st = DATA.chapter_state.find((c) => c.chapter_id === id);
+        if (st && st.last_position) video.addEventListener('loadedmetadata', () => { video.currentTime = st.last_position; });
+        let last = 0;
+        video.addEventListener('timeupdate', () => {
+          const now = Date.now();
+          if (now - last > 5000) { last = now; API.put('/chapters/' + id + '/position', { last_position: video.currentTime }).catch(() => {}); }
+        });
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

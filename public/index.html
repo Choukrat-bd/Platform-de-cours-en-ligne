@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChoukrApp Academie - Plateforme de cours en ligne</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <section class="hero">
+    <div class="container hero-grid">
+      <div class="hero-text">
+        <span class="hero-badge">🎓 Plateforme e-learning</span>
+        <h1>Apprenez en ligne avec ChoukrApp Academie</h1>
+        <p class="lead">Cours structurés par chapitres, vidéos, supports PDF, quiz corrigés automatiquement et certificats de réussite. Tout ce dont vous avez besoin pour progresser à votre rythme.</p>
+        <div class="hero-actions">
+          <a class="btn btn-light" href="/catalog.html">Explorer le catalogue</a>
+          <a class="btn btn-ghost" href="/register.html">Créer un compte</a>
+        </div>
+      </div>
+      <div class="hero-student">
+        <img src="/img/student.jpg" alt="Étudiante avec ses livres et son sac">
+        <div class="hero-float f1">📚 <b>Cours</b> en ligne</div>
+        <div class="hero-float f2">🏆 <b>Certificat</b> PDF</div>
+      </div>
+    </div>
+  </section>
+
+  <main class="container" style="margin-top:44px">
+    <h2 class="section-title">Cours populaires</h2>
+    <p class="section-sub">Découvrez une sélection de cours</p>
+    <div class="grid grid-3" id="course-grid"><div class="spinner"></div></div>
+  </main>
+
+  <section class="container" style="margin-top:56px">
+    <h2 class="section-title">Nos affiches du moment</h2>
+    <p class="section-sub">Des parcours pensés pour vous faire progresser</p>
+    <div class="poster-grid">
+      <div class="poster" style="background-image:url('/img/slide1.jpg')">
+        <div class="poster-content">
+          <span class="poster-tag">Nouveau</span>
+          <h3>Apprenez à votre rythme</h3>
+          <p>Vidéos, chapitres et supports PDF accessibles 24h/24.</p>
+        </div>
+      </div>
+      <div class="poster" style="background-image:url('/img/slide2.jpg')">
+        <div class="poster-content">
+          <span class="poster-tag">Quiz</span>
+          <h3>Évaluez-vous en continu</h3>
+          <p>Des quiz corrigés automatiquement à la fin de chaque module.</p>
+        </div>
+      </div>
+      <div class="poster" style="background-image:url('/img/slide3.jpg')">
+        <div class="poster-content">
+          <span class="poster-tag">Certificat</span>
+          <h3>Obtenez votre certificat</h3>
+          <p>Terminez 100% du cours et décrochez votre certificat PDF.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="container" style="margin-top:56px">
+    <h2 class="section-title">Comment ça marche ?</h2>
+    <div class="grid grid-3 mt">
+      <div class="card"><h3>1. Créez un compte</h3><p class="muted">Inscrivez-vous gratuitement en tant qu'étudiant ou enseignant.</p></div>
+      <div class="card"><h3>2. Suivez vos cours</h3><p class="muted">Vidéos, chapitres et supports PDF, à votre rythme. Votre progression est enregistrée.</p></div>
+      <div class="card"><h3>3. Passez les quiz</h3><p class="muted">Évaluez-vous avec des quiz corrigés automatiquement et obtenez votre certificat.</p></div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    &copy; 2026 ChoukrApp Academie — Université Privée Hay (UPH) — L1 S2 V2 — Programmation JavaScript
+  </footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    (async () => {
+      try {
+        const { courses } = await API.get('/courses');
+        const list = courses.slice(0, 6);
+        const grid = document.getElementById('course-grid');
+        if (!grid) return;
+        if (list.length === 0) { grid.innerHTML = '<div class="empty">Aucun cours disponible.</div>'; return; }
+        grid.innerHTML = list.map(courseCard).join('');
+      } catch (e) { console.error(e); }
+    })();
+
+    function courseCard(c) {
+      return `
+        <article class="card course-card">
+          ${coverTag(c)}
+          <div class="course-body">
+            <span class="tag">${esc(c.category || 'Général')}</span>
+            <h3>${esc(c.title)}</h3>
+            <p class="muted">${esc((c.description || '').slice(0, 90))}${c.description && c.description.length > 90 ? '…' : ''}</p>
+            <div class="course-meta">
+              <span>👨‍🏫 ${esc(c.enseignant || 'Enseignant')}</span>
+              <span>📚 ${c.chapitres} chapitre(s)</span>
+              <span>🏷️ ${levelLabel(c.level)}</span>
+            </div>
+            <div class="course-footer">
+              <a class="btn btn-block" href="/course.html?id=${c.id}">Voir le cours</a>
+            </div>
+          </div>
+        </article>`;
+    }
+  </script>
+</body>
+</html>

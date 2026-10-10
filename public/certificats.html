@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mes certificats - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container" style="margin-top:28px">
+    <div class="cert-hero mb">
+      <span class="cert-hero-icon">🎓</span>
+      <div>
+        <h2>Mes certificats</h2>
+        <p class="muted">Tous vos certificats de réussite : téléchargez-les en PDF et vérifiez-les en ligne.</p>
+      </div>
+    </div>
+
+    <div id="page" class="mb"><div class="spinner"></div></div>
+  </main>
+
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    async function load() {
+      await loadUser();
+      if (!requireAuth()) return;
+      try {
+        const [certRes, eligRes] = await Promise.all([
+          API.get('/me/certificates'),
+          API.get('/me/certificates/eligible')
+        ]);
+        render(certRes.certificates, eligRes.courses);
+      } catch (e) {
+        qs('#page').innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`;
+      }
+    }
+
+    const certCard = (c) => `
+      <div class="card cert-card">
+        <div class="cert-card-head">
+          <span class="cert-badge">🏆</span>
+          <div>
+            <span class="tag tag-success">Certificat</span>
+            <h3>${esc(c.course_title)}</h3>
+          </div>
+        </div>
+        <p class="muted cert-code">Code : <b>${esc(c.code)}</b></p>
+        <p class="muted">Mention : <span class="badge ${c.grade === 'Excellent' ? 'badge-green' : c.grade === 'Insuffisant' ? 'badge-orange' : 'badge-pink'}">${gradeLabel(c.grade)}</span></p>
+        <p class="muted">Délivré le ${fmtDate(c.issued_at)}</p>
+        <div class="cert-card-actions">
+          <a class="btn" href="/api/certificates/${c.id}/download">⬇️ Télécharger le PDF</a>
+          <button class="btn btn-outline" onclick="verifyCode('${esc(c.code)}')">🔍 Vérifier</button>
+        </div>
+      </div>`;
+
+    const readyCard = (c) => `
+      <div class="card ready-card">
+        <span class="tag tag-success">Prêt !</span>
+        <h3 class="mt">${esc(c.title)}</h3>
+        <p class="muted">Vous avez terminé ${c.progress}% du cours avec une moyenne de ${c.average}/100.</p>
+        <div class="mt"><button class="btn" onclick="getCert(${c.course_id})">🎓 Obtenir mon certificat</button></div>
+      </div>`;
+
+    const pendingCard = (c) => `
+      <div class="card ready-card">
+        <h3>${esc(c.title)}</h3>
+        <div class="progress-bar-lg mt"><div style="width:${c.progress}%"></div></div>
+        <p class="muted">Progression : <b>${c.progress}%</b> · Moyenne des quiz : <b>${c.average}/100</b></p>
+        <ul class="reasons">${c.reasons.map((r) => `<li>• ${esc(r)}</li>`).join('')}</ul>
+      </div>`;
+
+    function render(certificates, courses) {
+      const obtained = certificates;
+      const ready = courses.filter((c) => c.eligible && !c.certificate);
+      const pending = courses.filter((c) => !(c.eligible && !c.certificate));
+
+      const certsHTML = obtained.length === 0
+        ? '<p class="muted">Aucun certificat pour le moment. Terminez un cours à 100% et réussissez ses quiz (moyenne ≥ 60) pour en obtenir un.</p>'
+        : `<div class="grid grid-3">${obtained.map(certCard).join('')}</div>`;
+
+      const readyHTML = ready.length === 0
+        ? '<p class="muted">Aucun certificat disponible en attente. Les cours éligibles apparaîtront ici.</p>'
+        : `<div class="grid grid-2">${ready.map(readyCard).join('')}</div>`;
+
+      const pendingHTML = pending.length === 0
+        ? ''
+        : `<div class="grid grid-2">${pending.map(pendingCard).join('')}</div>`;
+
+      qs('#page').innerHTML = `
+        <div class="card mb">
+          <h3>📜 Mes certificats obtenus</h3>
+          <p class="muted">Vous avez <b>${obtained.length}</b> certificat(s).</p>
+          <div class="mt">${certsHTML}</div>
+        </div>
+
+        <div class="card mb">
+          <h3>🎉 Prêts à être délivrés</h3>
+          <div class="mt">${readyHTML}</div>
+        </div>
+
+        ${pendingHTML ? `<div class="card mb"><h3>🚧 Continuez pour décrocher votre certificat</h3><div class="mt">${pendingHTML}</div></div>` : ''}
+
+        <div class="card mb">
+          <h3>🔍 Vérifier un certificat</h3>
+          <p class="muted">Entrez le code d'un certificat (ex : CHA-...) pour vérifier son authenticité.</p>
+          <div class="flex gap mt">
+            <input type="text" id="verify-input" placeholder="CHA-2026-0001-001-XXXX" style="flex:1">
+            <button class="btn" id="verify-btn">Vérifier</button>
+          </div>
+          <div id="verify-result" class="mt"></div>
+        </div>
+      `;
+
+      qs('#verify-btn').addEventListener('click', () => runVerify());
+      qs('#verify-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') runVerify(); });
+    }
+
+    async function getCert(courseId) {
+      try {
+        const r = await API.post(`/courses/${courseId}/certificate`);
+        toast('Certificat généré avec succès !', 'success');
+        setTimeout(() => load(), 900);
+      } catch (e) {
+        toast(e.message, 'error');
+      }
+    }
+
+    async function runVerify() {
+      const code = qs('#verify-input').value.trim();
+      const out = qs('#verify-result');
+      if (!code) { out.innerHTML = '<div class="alert alert-info">Veuillez saisir un code.</div>'; return; }
+      out.innerHTML = '<p class="muted">Vérification…</p>';
+      try {
+        const raw = await fetch(`/api/certificates/verify/${encodeURIComponent(code)}`);
+        const data = await raw.json();
+        if (raw.ok && data.valid) {
+          out.innerHTML = `<div class="alert alert-success">
+            ✅ <b>Certificat valide</b><br>
+            Étudiant : ${esc(data.certificate.student)}<br>
+            Cours : ${esc(data.certificate.course)}<br>
+            Mention : ${gradeLabel(data.certificate.grade)} · Délivré le ${fmtDate(data.certificate.issued_at)}
+          </div>`;
+        } else {
+          out.innerHTML = `<div class="alert alert-danger">❌ ${esc(data.message || 'Code invalide.')}</div>`;
+        }
+      } catch (e) {
+        out.innerHTML = `<div class="alert alert-danger">Erreur : ${esc(e.message)}</div>`;
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>

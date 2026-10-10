@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connexion - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container">
+    <div class="card auth-wrap">
+      <h2 class="section-title">Connexion</h2>
+      <p class="section-sub">Accédez à votre espace étudiant.</p>
+      <div id="msg"></div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Adresse email</label>
+          <input type="email" id="email" required placeholder="etudiant@choukrapp.mg">
+        </div>
+        <div class="form-group">
+          <label for="password">Mot de passe</label>
+          <input type="password" id="password" required placeholder="••••••••">
+        </div>
+        <button class="btn btn-block" type="submit">Se connecter</button>
+      </form>
+      <p class="center mt muted">Pas encore de compte ? <a href="/register.html">Créer un compte</a></p>
+      <div class="alert alert-info mt">
+        <strong>Comptes de démonstration</strong><br>
+        Étudiant : etudiant@choukrapp.mg / Etudiant123<br>
+        Enseignant : enseignant@choukrapp.mg / Enseignant123
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    qs('#login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = qs('#msg');
+      msg.innerHTML = '';
+      try {
+        const { user } = await API.post('/auth/login', {
+          email: qs('#email').value.trim(),
+          password: qs('#password').value
+        });
+        toast('Bienvenue ' + user.prenom + ' !', 'success');
+        const next = new URLSearchParams(location.search).get('next');
+        setTimeout(() => (location.href = next || '/dashboard.html'), 600);
+      } catch (err) {
+        msg.innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>

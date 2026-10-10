@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Espace enseignant - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container" style="margin-top:28px" id="main">
+    <div class="spinner"></div>
+  </main>
+
+  <div id="modal-root"></div>
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    let allCourses = [];
+
+    /* ---------- Initialisation ---------- */
+    async function init() {
+      await loadUser();
+      if (!requireAuth()) return;
+      if (CURRENT_USER.role !== 'enseignant' && CURRENT_USER.role !== 'admin') {
+        qs('#main').innerHTML = '<div class="alert alert-danger">Espace réservé aux enseignants et administrateurs.</div>';
+        return;
+      }
+      renderList();
+    }
+
+    async function renderList() {
+      qs('#main').innerHTML = '<div class="spinner"></div>';
+      try {
+        allCourses = (await API.get('/courses/mine')).courses;
+        qs('#main').innerHTML = `
+          <div class="flex between wrap gap">
+            <div>
+              <h1 class="section-title">Espace enseignant</h1>
+              <p class="section-sub">Gérez vos cours, chapitres, supports et quiz.</p>
+            </div>
+            <button class="btn" id="btn-new">+ Nouveau cours</button>
+          </div>
+          ${allCourses.length === 0 ? '<div class="empty"><div class="big">📚</div>Aucun cours pour l\'instant.</div>' : `
+            <div class="grid grid-3">
+              ${allCourses.map((c) => `
+                <article class="card course-card">
+                  ${coverTag(c)}
+                  <div class="course-body">
+                    <span class="tag ${c.is_published ? 'tag-success' : 'tag-muted'}">${c.is_published ? 'Publié' : 'Brouillon'}</span>
+                    <h3>${esc(c.title)}</h3>
+                    <p class="muted">${c.chapitres} chapitre(s) — ${levelLabel(c.level)}</p>
+                    <div class="course-footer">
+                      <button class="btn btn-block" data-manage="${c.id}">Gérer</button>
+                      <a class="btn btn-outline btn-block mt" href="/course.html?id=${c.id}" target="_blank">Voir la page</a>
+                    </div>
+                  </div>
+                </article>`).join('')}
+            </div>`}`;
+
+      qs('#btn-new').addEventListener('click', () => openCourseForm(null));
+      qsa('[data-manage]').forEach((b) => b.addEventListener('click', () => openManage(Number(b.dataset.manage))));
+      } catch (e) {
+        qs('#main').innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`;
+      }
+    }
+
+    /* ---------- Création / édition d'un cours ---------- */
+    function openCourseForm(course) {
+      const isEdit = Boolean(course);
+      modal(`
+        <h3>${isEdit ? 'Modifier le cours' : 'Nouveau cours'}</h3>
+        <form id="course-form">
+          <div class="form-group"><label>Titre *</label><input id="f-title" required value="${esc(course ? course.title : '')}"></div>
+          <div class="form-group"><label>Description</label><textarea id="f-desc">${esc(course ? course.description || '' : '')}</textarea></div>
+          <div class="grid grid-2">
+            <div class="form-group"><label>Catégorie</label><input id="f-cat" value="${esc(course ? course.category || '' : 'Informatique')}"></div>
+            <div class="form-group"><label>Niveau</label>
+              <select id="f-level">
+                ${['Debutant', 'Intermediaire', 'Avance'].map((l) => `<option value="${l}" ${course && course.level === l ? 'selected' : ''}>${levelLabel(l)}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px">
+            <input type="checkbox" id="f-pub" style="width:auto" ${!course || course.is_published ? 'checked' : ''}> Publier le cours
+          </label>
+          <div class="form-actions">
+            <button type="button" class="btn btn-outline" onclick="closeModal()">Annuler</button>
+            <button type="submit" class="btn">${isEdit ? 'Enregistrer' : 'Créer'}</button>
+          </div>
+        </form>`);
+
+      qs('#course-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const payload = {
+          title: qs('#f-title').value.trim(),
+          description: qs('#f-desc').value.trim(),
+          category: qs('#f-cat').value.trim(),
+          level: qs('#f-level').value,
+          is_published: qs('#f-pub').checked
+        };
+        try {
+          if (isEdit) await API.put('/courses/' + course.id, payload);
+          else await API.post('/courses', payload);
+          toast('Cours enregistré.', 'success');
+          closeModal();
+          renderList();
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+
+    /* ---------- Gestion d'un cours ---------- */
+    async function openManage(courseId) {
+      qs('#main').innerHTML = '<div class="spinner"></div>';
+      const detail = await API.get('/courses/' + courseId);
+      const course = detail.course;
+
+      qs('#main').innerHTML = `
+        <a href="javascript:void(0)" id="back" class="muted">← Retour à mes cours</a>
+        <div class="flex between wrap gap mt">
+          <h1 class="section-title">${esc(course.title)}</h1>
+          <div class="flex gap">
+            <button class="btn btn-outline" id="edit-course">Modifier</button>
+            <button class="btn btn-danger" id="del-course">Supprimer</button>
+          </div>
+        </div>
+
+        <div class="grid grid-2 mt">
+          <div class="card">
+            <div class="flex between"><h3>Chapitres</h3><button class="btn btn-sm" id="add-chapter">+ Chapitre</button></div>
+            <div class="mt">
+              ${detail.chapters.length === 0 ? '<p class="muted">Aucun chapitre.</p>' : detail.chapters.map((ch) => `
+                <div class="chapter-row">
+                  <strong>${esc(ch.title)}</strong>
+                  <div class="media-badge">${ch.video_url ? '🎬 vidéo ' : ''}${ch.pdf_url ? '📄 pdf' : ''}</div>
+                  <div class="flex gap mt">
+                    <button class="btn btn-sm btn-outline" data-upload="${ch.id}">Téléverser médias</button>
+                    <button class="btn btn-sm btn-danger" data-delchap="${ch.id}">Supprimer</button>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="flex between"><h3>Quiz</h3><button class="btn btn-sm" id="add-quiz">+ Quiz</button></div>
+            <div class="mt">
+              ${detail.quizzes.length === 0 ? '<p class="muted">Aucun quiz.</p>' : detail.quizzes.map((q) => `
+                <div class="chapter-row">
+                  <strong>${esc(q.title)}</strong>
+                  <div class="flex gap mt">
+                    <a class="btn btn-sm btn-outline" href="/quiz.html?id=${q.id}" target="_blank">Voir</a>
+                    <button class="btn btn-sm btn-danger" data-delquiz="${q.id}">Supprimer</button>
+                  </div>
+                </div>`).join('')}
+            </div>
+          </div>
+        </div>`;
+
+      qs('#back').addEventListener('click', renderList);
+      qs('#edit-course').addEventListener('click', () => openCourseForm(detail.course));
+      qs('#add-chapter').addEventListener('click', () => openChapterForm(courseId));
+      qs('#add-quiz').addEventListener('click', () => openQuizForm(courseId));
+      qs('#del-course').addEventListener('click', async () => {
+        if (!confirm('Supprimer ce cours et tout son contenu ?')) return;
+        await API.del('/courses/' + courseId);
+        toast('Cours supprimé.', 'success');
+        renderList();
+      });
+      qsa('[data-delchap]').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('Supprimer ce chapitre ?')) return;
+        await API.del('/chapters/' + b.dataset.delchap);
+        toast('Chapitre supprimé.', 'success');
+        openManage(courseId);
+      }));
+      qsa('[data-delquiz]').forEach((b) => b.addEventListener('click', async () => {
+        if (!confirm('Supprimer ce quiz ?')) return;
+        await API.del('/quizzes/' + b.dataset.delquiz);
+        toast('Quiz supprimé.', 'success');
+        openManage(courseId);
+      }));
+      qsa('[data-upload]').forEach((b) => b.addEventListener('click', () => openUpload(Number(b.dataset.upload), courseId)));
+    }
+
+    function openChapterForm(courseId) {
+      modal(`
+        <h3>Nouveau chapitre</h3>
+        <form id="chapter-form">
+          <div class="form-group"><label>Titre *</label><input id="c-title" required></div>
+          <div class="form-group"><label>Contenu / notes</label><textarea id="c-content"></textarea></div>
+          <div class="form-group"><label>Lien vidéo (URL, optionnel)</label><input id="c-video" placeholder="https://.../video.mp4"></div>
+          <div class="form-group"><label>Support PDF (fichier, optionnel)</label><input type="file" id="c-pdf" accept="application/pdf"></div>
+          <div class="form-group"><label>Vidéo (fichier, optionnel)</label><input type="file" id="c-vfile" accept="video/*"></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-outline" onclick="closeModal()">Annuler</button>
+            <button type="submit" class="btn">Ajouter</button>
+          </div>
+        </form>`);
+
+      qs('#chapter-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        try {
+          const { chapter } = await API.post('/courses/' + courseId + '/chapters', {
+            title: qs('#c-title').value.trim(),
+            content: qs('#c-content').value.trim(),
+            video_url: qs('#c-video').value.trim() || null
+          });
+          const fd = new FormData();
+          const pdf = qs('#c-pdf').files[0];
+          const vid = qs('#c-vfile').files[0];
+          if (pdf) fd.append('pdf', pdf);
+          if (vid) fd.append('video', vid);
+          if (pdf || vid) await API.post('/chapters/' + chapter.id + '/upload', fd, true);
+          toast('Chapitre ajouté.', 'success');
+          closeModal();
+          openManage(courseId);
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+
+    function openUpload(chapterId, courseId) {
+      modal(`
+        <h3>Téléverser des médias</h3>
+        <form id="upload-form">
+          <div class="form-group"><label>Support PDF</label><input type="file" id="u-pdf" accept="application/pdf"></div>
+          <div class="form-group"><label>Vidéo</label><input type="file" id="u-video" accept="video/*"></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-outline" onclick="closeModal()">Annuler</button>
+            <button type="submit" class="btn">Téléverser</button>
+          </div>
+        </form>`);
+
+      qs('#upload-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const fd = new FormData();
+        const pdf = qs('#u-pdf').files[0];
+        const vid = qs('#u-video').files[0];
+        if (pdf) fd.append('pdf', pdf);
+        if (vid) fd.append('video', vid);
+        if (!pdf && !vid) { toast('Sélectionnez au moins un fichier.', 'warning'); return; }
+        try {
+          await API.post('/chapters/' + chapterId + '/upload', fd, true);
+          toast('Médias téléversés.', 'success');
+          closeModal();
+          openManage(courseId);
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+
+    function openQuizForm(courseId) {
+      modal(`
+        <h3>Nouveau quiz</h3>
+        <form id="quiz-form">
+          <div class="form-group"><label>Titre du quiz *</label><input id="q-title" required></div>
+          <div id="questions"></div>
+          <button type="button" class="btn btn-outline btn-sm" id="add-q">+ Question</button>
+          <div class="form-actions">
+            <button type="button" class="btn btn-outline" onclick="closeModal()">Annuler</button>
+            <button type="submit" class="btn">Créer le quiz</button>
+          </div>
+        </form>`);
+
+      addQuestionBlock();
+      qs('#add-q').addEventListener('click', addQuestionBlock);
+
+      qs('#quiz-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const questions = qsa('.qblock').map((block) => ({
+          text: block.querySelector('.qtext').value.trim(),
+          options: [...block.querySelectorAll('.opt-input')].map((i) => i.value.trim()).filter(Boolean),
+          correctIndex: Number(block.querySelector('.qcorrect').value),
+          explanation: block.querySelector('.qexpl').value.trim()
+        })).filter((q) => q.text && q.options.length >= 2);
+
+        try {
+          await API.post('/courses/' + courseId + '/quizzes', { title: qs('#q-title').value.trim(), questions });
+          toast('Quiz créé.', 'success');
+          closeModal();
+          openManage(courseId);
+        } catch (err) { toast(err.message, 'error'); }
+      });
+    }
+
+    let qIndex = 0;
+    function addQuestionBlock() {
+      const n = qIndex++;
+      qs('#questions').insertAdjacentHTML('beforeend', `
+        <div class="qblock card mb" style="background:#f8fafc">
+          <div class="form-group"><label>Question</label><input class="qtext"></div>
+          <label>Options — cochez la bonne réponse</label>
+          ${[0, 1, 2, 3].map((i) => `
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+              <input type="radio" name="correct-${qIndex}" class="qcorrect-radio" value="${i}" ${i === 0 ? 'checked' : ''} style="width:auto">
+              <input class="opt-input" placeholder="Option ${i + 1}" style="margin:0">
+            </div>`).join('')}
+          <input type="hidden" class="qcorrect" value="0">
+          <div class="form-group mt"><label>Explication de la bonne réponse</label><input class="qexpl"></div>
+        </div>`);
+      const block = qsa('.qblock').at(-1);
+      block.querySelectorAll('.qcorrect-radio').forEach((r) => r.addEventListener('change', () => {
+        block.querySelector('.qcorrect').value = r.value;
+      }));
+    }
+
+    /* ---------- Modal ---------- */
+    function modal(html) {
+      qs('#modal-root').innerHTML = `<div class="modal-backdrop"><div class="modal">${html}</div></div>`;
+      qs('.modal-backdrop').addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-backdrop')) closeModal();
+      });
+    }
+    function closeModal() { qs('#modal-root').innerHTML = ''; }
+    window.closeModal = closeModal;
+
+    /* ---------- Démarrage ---------- */
+    (async () => {
+      await loadUser();
+      if (!requireAuth()) return;
+      if (!['enseignant', 'admin'].includes(CURRENT_USER.role)) {
+        qs('#main').innerHTML = '<div class="alert alert-danger">Accès réservé aux enseignants.</div>';
+        return;
+      }
+      renderList();
+    })();
+  </script>
+</body>
+</html>

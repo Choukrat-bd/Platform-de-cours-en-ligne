@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tableau de bord - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container" style="margin-top:28px" id="main">
+    <div class="spinner"></div>
+  </main>
+
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    async function load() {
+      await loadUser();
+      if (!requireAuth()) return;
+      try {
+        const d = await API.get('/me/dashboard');
+        render(d);
+      } catch (e) { qs('#main').innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
+    }
+
+    const stat = (v, l) => `<div class="card stat-card"><div class="value">${v}</div><div class="label">${l}</div></div>`;
+
+    const courseItem = (c) => `
+      <article class="card course-card">
+        ${coverTag(c)}
+        <div class="course-body">
+          <span class="tag">${esc(c.category || 'Général')}</span>
+          <h3>${esc(c.title)}</h3>
+          <div class="progress-bar-lg"><div style="width:${c.progress}%"></div></div>
+          <p class="muted">${c.progress}% — ${Number(c.progress) >= 100 ? 'Terminé ✅' : 'En cours'}</p>
+          <div class="course-footer">
+            <a class="btn btn-block" href="/course.html?id=${c.course_id}">${Number(c.progress) >= 100 ? 'Revoir' : 'Continuer'}</a>
+          </div>
+        </div>
+      </article>`;
+
+    function render({ stats, courses, attempts, certificates }) {
+      const evo = [...attempts]
+        .filter((a) => a.submitted_at)
+        .sort((a, b) => new Date(a.submitted_at) - new Date(b.submitted_at))
+        .map((a) => ({ label: fmtShort(a.submitted_at), value: Number(a.note) || 0 }));
+
+      const done = courses.filter((c) => Number(c.progress) >= 100).length;
+      const inprog = courses.filter((c) => Number(c.progress) > 0 && Number(c.progress) < 100).length;
+      const notStarted = courses.filter((c) => Number(c.progress) <= 0).length;
+      const donut = [
+        { label: 'Terminés', value: done, color: '#16a34a' },
+        { label: 'En cours', value: inprog, color: '#db2777' },
+        { label: 'Non commencés', value: notStarted, color: '#f9a8d4' }
+      ];
+      const bars = [...courses]
+        .sort((a, b) => Number(b.progress) - Number(a.progress))
+        .slice(0, 6)
+        .map((c) => ({ label: c.title, value: Number(c.progress) || 0 }));
+
+      const coursesHTML = courses.length === 0
+        ? '<div class="empty"><div class="big">📚</div>Vous n\'êtes inscrit à aucun cours.<br><a class="btn mt" href="/catalog.html">Explorer le catalogue</a></div>'
+        : `<div class="grid grid-3">${courses.map(courseItem).join('')}</div>`;
+
+      const attemptsHTML = attempts.length === 0
+        ? '<p class="muted">Aucune note pour le moment.</p>'
+        : `<div class="card" style="overflow:auto"><table>
+            <thead><tr><th>Quiz</th><th>Cours</th><th>Note</th><th>Date</th></tr></thead>
+            <tbody>${attempts.map((a) => `
+              <tr><td>${esc(a.quiz_title)}</td><td>${esc(a.course_title)}</td>
+              <td><span class="badge ${a.note >= 60 ? 'badge-green' : 'badge-orange'}">${a.note}/100</span></td>
+              <td>${fmtShort(a.submitted_at)}</td></tr>`).join('')}</tbody>
+          </table></div>`;
+
+      const certsHTML = certificates.length === 0
+        ? '<p class="muted">Aucun certificat pour le moment. Terminez un cours et réussissez ses quiz pour en obtenir un.</p>'
+        : `<div class="grid grid-2">${certificates.map((c) => `
+            <div class="card">
+              <span class="tag tag-success">Certificat</span>
+              <h3 class="mt">${esc(c.course_title)}</h3>
+              <p class="muted">Mention : ${gradeLabel(c.grade)}<br>Code : ${esc(c.code)}<br>Délivré le ${fmtDate(c.issued_at)}</p>
+              <a class="btn mt" href="/api/certificates/${c.id}/download">⬇️ Télécharger le PDF</a>
+            </div>`).join('')}</div>`;
+
+      qs('#main').innerHTML = `
+        <div class="dash-hero mb">
+          <img src="/img/student.jpg" alt="Étudiante">
+          <div class="dash-hero-content">
+            <h2>${esc(CURRENT_USER.prenom)} ${esc(CURRENT_USER.nom)}</h2>
+            <p class="muted">${esc(CURRENT_USER.role)} · ${certificates.length} certificat(s)</p>
+            <div class="dash-pills">
+              <span class="pill"><b>${stats.enrolled}</b> cours suivis</span>
+              <span class="pill"><b>${stats.completed}</b> terminés</span>
+              <span class="pill"><b>${stats.avg_grade}/100</b> note moyenne</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-grid mb">
+          ${stat(stats.enrolled, '📚 Cours suivis')}
+          ${stat(stats.completed, '✅ Terminés')}
+          ${stat(stats.avg_progress + '%', '📈 Progression moyenne')}
+          ${stat(stats.avg_grade + '/100', '⭐ Note moyenne')}
+          ${stat(stats.certificates, '🏆 Certificats')}
+        </div>
+
+        <div class="charts-grid mb">
+          <div class="card">
+            <h3>📈 Évolution de vos notes</h3>
+            ${lineChart(evo)}
+          </div>
+          <div class="card">
+            <h3>🎯 Répartition des cours</h3>
+            ${donutChart(donut)}
+            ${legendHTML(donut)}
+          </div>
+        </div>
+
+        <div class="card mb">
+          <h3>📊 Progression par cours</h3>
+          <div class="mt">${barChart(bars)}</div>
+        </div>
+
+        <h2 class="section-title mt">Mes cours</h2>
+        ${coursesHTML}
+
+        <h2 class="section-title mt">Historique des notes</h2>
+        ${attemptsHTML}
+
+        <h2 class="section-title mt">Mes certificats</h2>
+        ${certsHTML}
+      `;
+    }
+
+    load();
+  </script>
+</body>
+</html>

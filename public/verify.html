@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vérifier un certificat - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container">
+    <div class="card auth-wrap">
+      <h2 class="section-title">Vérifier un certificat</h2>
+      <p class="section-sub">Saisissez le code de vérification figurant sur le certificat.</p>
+      <div id="result"></div>
+      <form id="verify-form">
+        <div class="form-group">
+          <label for="code">Code du certificat</label>
+          <input id="code" required placeholder="CHA-2026-0001-001-XXXX">
+        </div>
+        <button class="btn btn-block" type="submit">Vérifier</button>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    qs('#verify-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const result = qs('#result');
+      result.innerHTML = '';
+      try {
+        const r = await API.get('/certificates/verify/' + encodeURIComponent(qs('#code').value.trim()));
+        result.innerHTML = `
+          <div class="alert alert-success mb">
+            <strong>Certificat valide</strong><br>
+            Étudiant : <strong>${esc(r.certificate.student)}</strong><br>
+            Cours : ${esc(r.certificate.course)}<br>
+            Mention : ${gradeLabel(r.certificate.grade)}<br>
+            Délivré le ${fmtDate(r.certificate.issued_at)}<br>
+            Code : ${esc(r.certificate.code)}
+          </div>`;
+      } catch (err) {
+        result.innerHTML = `<div class="alert alert-danger mb">${esc(err.message)}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>

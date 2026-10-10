@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Inscription - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container">
+    <div class="card auth-wrap">
+      <h2 class="section-title">Créer un compte</h2>
+      <p class="section-sub">Rejoignez ChoukrApp Academie et commencez à apprendre.</p>
+      <div id="msg"></div>
+      <form id="register-form">
+        <div class="grid grid-2" style="gap:12px">
+          <div class="form-group">
+            <label for="prenom">Prénom</label>
+            <input type="text" id="prenom" required>
+          </div>
+          <div class="form-group">
+            <label for="nom">Nom</label>
+            <input type="text" id="nom" required>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="email">Adresse email</label>
+          <input type="email" id="email" required placeholder="vous@exemple.com">
+        </div>
+        <div class="form-group">
+          <label for="password">Mot de passe (6 caractères minimum)</label>
+          <input type="password" id="password" required minlength="6">
+        </div>
+        <div class="form-group">
+          <label for="role">Je m'inscris en tant que</label>
+          <select id="role">
+            <option value="etudiant">Étudiant</option>
+            <option value="enseignant">Enseignant</option>
+          </select>
+        </div>
+        <button class="btn btn-block" type="submit">Créer mon compte</button>
+      </form>
+      <p class="center mt muted">Déjà inscrit ? <a href="/login.html">Se connecter</a></p>
+    </div>
+  </main>
+
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    qs('#register-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const msg = qs('#msg');
+      msg.innerHTML = '';
+      try {
+        const { user } = await API.post('/auth/register', {
+          nom: qs('#nom').value.trim(),
+          prenom: qs('#prenom').value.trim(),
+          email: qs('#email').value.trim(),
+          password: qs('#password').value,
+          role: qs('#role').value
+        });
+        toast('Compte créé avec succès !', 'success');
+        setTimeout(() => (location.href = '/dashboard.html'), 600);
+      } catch (err) {
+        msg.innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
+      }
+    });
+  </script>
+</body>
+</html>

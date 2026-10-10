@@ -1,0 +1,35 @@
+{
+  "name": "choukrapp-academie",
+  "version": "1.0.0",
+  "description": "ChoukrApp Academie - Plateforme de cours en ligne pour étudiants (Thème 2) - UPH L1 S2 V2",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "init-db": "node scripts/init-db.js",
+    "setup": "node scripts/init-db.js && npm start"
+  },
+  "keywords": [
+    "e-learning",
+    "cours",
+    "quiz",
+    "certificat",
+    "express",
+    "mysql"
+  ],
+  "author": "Etudiant UPH - L1 S2 V2",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "dotenv": "^18.0.7",
+    "express": "^5.3.0",
+    "express-session": "^1.19.0",
+    "multer": "^2.4.0",
+    "mysql2": "^3.24.5",
+    "pdfkit": "^0.20.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}

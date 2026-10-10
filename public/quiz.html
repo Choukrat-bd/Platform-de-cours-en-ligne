@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quiz - ChoukrApp Academie</title>
+  <link rel="icon" href="/favicon.svg">
+  <link rel="stylesheet" href="/css/style.css?v=5">
+</head>
+<body>
+  <header class="site-header" id="site-header"></header>
+
+  <main class="container" style="margin-top:28px" id="main">
+    <div class="spinner"></div>
+  </main>
+
+  <footer class="site-footer">&copy; 2026 ChoukrApp Academie — UPH</footer>
+
+  <script src="/js/app.js?v=5"></script>
+  <script>
+    const quizId = Number(new URLSearchParams(location.search).get('id'));
+    let Q = null;
+
+    async function load() {
+      try { Q = await API.get('/quizzes/' + quizId); render(); }
+      catch (e) { qs('#main').innerHTML = `<div class="alert alert-danger">${esc(e.message)}</div>`; }
+    }
+
+    function render() {
+      const { quiz, questions, best } = Q;
+      qs('#main').innerHTML = `
+        <a href="javascript:history.back()" class="muted">← Retour au cours</a>
+        <h1 class="section-title mt">${esc(quiz.title)}</h1>
+        <p class="section-sub">${questions.length} question(s) · Meilleure note : <strong>${best}/100</strong></p>
+        <form id="quiz-form">
+          ${questions.map((q, i) => `
+            <div class="question-block" data-q="${i}">
+              <p><strong>${i + 1}. ${esc(q.text)}</strong></p>
+              ${q.options.map((opt, oi) => `
+                <label class="option">
+                  <input type="radio" name="q${i}" value="${oi}" data-opt="${oi}">
+                  <span>${esc(opt)}</span>
+                </label>`).join('')}
+            </div>`).join('')}
+          <button class="btn" type="submit">Terminer et corriger</button>
+        </form>`;
+
+      qs('form') && qs('#main form').addEventListener('submit', submit);
+    }
+
+    async function submit(e) {
+      e.preventDefault();
+      const answers = Q.questions.map((_, i) => {
+        const checked = qs(`input[name="q${i}"]:checked`);
+        return checked ? Number(checked.value) : -1;
+      });
+      if (answers.some((a) => a === -1)) {
+        if (!confirm('Certaines questions sont sans réponse. Continuer ?')) return;
+      }
+      try {
+        const r = await API.post('/quizzes/' + quizId + '/submit', { answers });
+        showResults(r);
+      } catch (e) { toast(e.message, 'error'); }
+    }
+
+    function showResults(r) {
+      const box = qs('#main');
+      box.innerHTML = `
+        <a href="javascript:history.back()" class="muted">← Retour au cours</a>
+        <div class="card center mt">
+          <h2>Résultat</h2>
+          <div class="progress-ring">${r.score}/100</div>
+          <p class="muted">${r.correct}/${r.total} point(s) obtenu(s) — ${r.score >= 60 ? '✅ Réussi' : '❌ À retravailler'}</p>
+        </div>
+        ${r.certificate ? `<div class="alert alert-success">🏆 Certificat généré ! Retrouvez-le dans votre <a href="/dashboard.html">tableau de bord</a>.</div>` : ''}
+        <h3 class="mt">Correction détaillée</h3>
+        ${r.details.map((d, i) => `
+          <div class="question-block">
+            <strong>${i + 1}. ${esc(d.text)}</strong>
+            <div class="mt">
+              ${d.options.map((opt, idx) => {
+                let cls = 'option';
+                if (idx === d.correct_answer) cls += ' correct';
+                else if (idx === d.user_answer) cls += ' incorrect';
+                return `<div class="${cls}">
+                  ${idx === d.correct_answer ? '✔️' : (idx === d.user_answer ? '✖️' : '•')} ${esc(opt)}
+                  ${idx === d.correct_answer ? '<em class="muted">(bonne réponse)</em>' : ''}
+                </div>`;
+              }).join('')}
+            </div>
+            ${d.explanation ? `<p class="alert alert-info" style="margin-top:10px">💡 ${esc(d.explanation)}</p>` : ''}
+          </div>`).join('')}
+        <div class="form-actions">
+          <button class="btn" onclick="location.reload()">Refaire le quiz</button>
+          <a class="btn btn-outline" href="javascript:history.back()">Retour au cours</a>
+        </div>`;
+      toast('Quiz corrigé : ' + r.score + '/100', r.score >= 60 ? 'success' : 'warning');
+    }
+
+    load();
+  </script>
+</body>
+</html>
