@@ -39,6 +39,8 @@
 
   <script src="/js/app.js?v=5"></script>
   <script>
+    const presetEmail = new URLSearchParams(location.search).get('email');
+    if (presetEmail) qs('#email').value = presetEmail;
     qs('#login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = qs('#msg');

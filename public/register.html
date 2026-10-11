@@ -41,7 +41,7 @@
             <option value="enseignant">Enseignant</option>
           </select>
         </div>
-        <button class="btn btn-block" type="submit">Créer mon compte</button>
+        <button class="btn btn-block" type="submit" id="submit-btn">Créer mon compte</button>
       </form>
       <p class="center mt muted">Déjà inscrit ? <a href="/login.html">Se connecter</a></p>
     </div>
@@ -54,19 +54,34 @@
     qs('#register-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const msg = qs('#msg');
+      const btn = qs('#submit-btn');
+      const email = qs('#email').value.trim();
       msg.innerHTML = '';
+      btn.disabled = true;
+      btn.textContent = 'Création…';
       try {
         const { user } = await API.post('/auth/register', {
           nom: qs('#nom').value.trim(),
           prenom: qs('#prenom').value.trim(),
-          email: qs('#email').value.trim(),
+          email,
           password: qs('#password').value,
           role: qs('#role').value
         });
         toast('Compte créé avec succès !', 'success');
         setTimeout(() => (location.href = '/dashboard.html'), 600);
       } catch (err) {
-        msg.innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
+        if (err.status === 409) {
+          msg.innerHTML = `<div class="alert alert-danger">
+            Un compte existe déjà avec cet email.
+            <a href="/login.html?email=${encodeURIComponent(email)}">Se connecter</a>,
+            ou utilisez un autre email.
+          </div>`;
+        } else {
+          msg.innerHTML = `<div class="alert alert-danger">${esc(err.message)}</div>`;
+        }
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Créer mon compte';
       }
     });
   </script>
